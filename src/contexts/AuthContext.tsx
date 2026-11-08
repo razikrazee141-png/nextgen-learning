@@ -387,8 +387,11 @@ function mapAuthErrorMessage(error: AuthError): string {
   if (msg.includes('password should be at least')) {
     return 'Password must be at least 8 characters long.';
   }
+  if (msg.includes('email rate limit') || msg.includes('over_email_send_rate_limit')) {
+    return 'Supabase email rate limit reached. In your Supabase Dashboard -> Authentication -> Providers -> Email, turn OFF "Confirm email" for instant signup.';
+  }
   if (msg.includes('rate limit')) {
-    return 'Too many login attempts. Please wait a few moments and try again.';
+    return 'Rate limit reached. In your Supabase Dashboard -> Authentication -> Providers -> Email, turn OFF "Confirm email" to skip email rate limits.';
   }
   if (msg.includes('phone') && (msg.includes('invalid') || msg.includes('format'))) {
     return 'Invalid phone number. Please enter a valid 10-digit Indian mobile number.';
