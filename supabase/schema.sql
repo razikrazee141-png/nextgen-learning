@@ -5,6 +5,7 @@
 
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 2. PROFILES TABLE
 -- Linked to auth.users. Stores student & admin identities and roles.
@@ -158,6 +159,84 @@ DROP TRIGGER IF EXISTS tr_protect_profile_role ON public.profiles;
 CREATE TRIGGER tr_protect_profile_role
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.protect_profile_role();
+
+-- ====================================================================
+-- DIRECT STUDENT REGISTRATION RPC (Solution B: Bypasses email rate limits)
+-- Hashes password with standard bcrypt and creates an instantly confirmed user.
+-- ====================================================================
+CREATE OR REPLACE FUNCTION public.register_student(
+  p_email TEXT,
+  p_password TEXT,
+  p_full_name TEXT,
+  p_phone TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+  v_user_id UUID := gen_random_uuid();
+  v_encrypted_pw TEXT;
+  v_raw_meta JSONB;
+BEGIN
+  IF p_email IS NULL OR trim(p_email) = '' THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Email or identifier is required.');
+  END IF;
+
+  IF p_password IS NULL OR length(p_password) < 8 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Password must be at least 8 characters long.');
+  END IF;
+
+  -- Check if user already exists
+  IF EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = lower(trim(p_email))) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'An account with this email or mobile number already exists. Please log in.');
+  END IF;
+
+  -- Bcrypt hash via pgcrypto
+  v_encrypted_pw := extensions.crypt(p_password, extensions.gen_salt('bf'));
+
+  v_raw_meta := jsonb_build_object(
+    'full_name', coalesce(trim(p_full_name), ''),
+    'phone', p_phone
+  );
+
+  -- Insert directly into auth.users with email_confirmed_at = now()
+  INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    v_user_id,
+    'authenticated',
+    'authenticated',
+    lower(trim(p_email)),
+    v_encrypted_pw,
+    timezone('utc'::text, now()),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    v_raw_meta,
+    timezone('utc'::text, now()),
+    timezone('utc'::text, now())
+  );
+
+  RETURN jsonb_build_object('success', true, 'user_id', v_user_id);
+EXCEPTION WHEN unique_violation THEN
+  RETURN jsonb_build_object('success', false, 'error', 'An account with this email or mobile number already exists. Please log in.');
+WHEN OTHERS THEN
+  RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.register_student(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
 
 -- Auto update timestamp trigger on courses
 CREATE OR REPLACE FUNCTION public.update_course_timestamp()

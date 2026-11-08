@@ -225,72 +225,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: 'Password must be at least 8 characters long.' };
     }
 
-    // 1. Phone Registration
+    // Determine email and phone targets
+    let targetEmail: string;
+    let targetPhone: string | null = null;
+
     if (isPhone) {
       const digits = extractIndianPhoneDigits(identifier);
       if (!digits) {
         return { error: 'Please enter a valid 10-digit Indian mobile number.' };
       }
-      const e164 = `+91${digits}`;
+      targetPhone = `+91${digits}`;
 
-      if (PHONE_AUTH_MODE === 'simple') {
-        const simpleEmail = phoneToSimpleEmail(digits);
-
-        const { data, error } = await supabase.auth.signUp({
-          email: simpleEmail,
-          password,
-          options: {
-            data: {
-              full_name: trimmedName,
-              phone: e164,
-            },
-          },
-        });
-
-        if (error) {
-          return { error: mapAuthErrorMessage(error) };
-        }
-
-        // If auto-confirmed or user object returned
-        if (data.user) {
-          await fetchProfile(data.user.id);
-        }
-        return { error: null };
-      } else {
-        // OTP Mode
+      if (PHONE_AUTH_MODE === 'otp') {
+        // OTP Mode - Native Supabase Phone Auth
         const { error } = await supabase.auth.signUp({
-          phone: e164,
+          phone: targetPhone,
           password,
           options: {
             data: {
               full_name: trimmedName,
-              phone: e164,
+              phone: targetPhone,
             },
           },
         });
-
         if (error) {
           return { error: mapAuthErrorMessage(error) };
         }
         return { error: null, needsOtp: true };
       }
+
+      // Simple mode: map to internal placeholder
+      targetEmail = phoneToSimpleEmail(digits);
+    } else {
+      targetEmail = identifier.trim().toLowerCase();
+      if (!isEmail(targetEmail)) {
+        return { error: 'Please enter a valid email address.' };
+      }
     }
 
-    // 2. Email Registration
-    const email = identifier.trim().toLowerCase();
-    if (!isEmail(email)) {
-      return { error: 'Please enter a valid email address.' };
-    }
-    if (!password) {
-      return { error: 'Password is required (minimum 8 characters).' };
+    // Solution B: Instant Direct Database Registration via RPC
+    // Completely bypasses Supabase's email rate limits and auto-confirms user
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('register_student', {
+        p_email: targetEmail,
+        p_password: password,
+        p_full_name: trimmedName,
+        p_phone: targetPhone,
+      });
+
+      if (!rpcError && rpcData) {
+        if (!rpcData.success) {
+          return { error: rpcData.error || 'Registration failed.' };
+        }
+
+        // Successfully created! Now authenticate immediately with password
+        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+          email: targetEmail,
+          password,
+        });
+
+        if (loginError) {
+          return { error: mapAuthErrorMessage(loginError) };
+        }
+
+        if (loginData.user) {
+          await fetchProfile(loginData.user.id);
+        }
+
+        return { error: null };
+      }
+    } catch {
+      // Fall through to standard signup if RPC is not deployed yet
     }
 
+    // Fallback: standard supabase.auth.signUp
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: targetEmail,
       password,
       options: {
         data: {
           full_name: trimmedName,
+          phone: targetPhone,
         },
       },
     });
