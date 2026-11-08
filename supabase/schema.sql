@@ -267,19 +267,19 @@ RETURNS TABLE (
   id UUID,
   course_id UUID,
   title TEXT,
-  position INTEGER
+  "position" INTEGER
 )
 LANGUAGE sql
 SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT l.id, l.course_id, l.title, l.position
+  SELECT l.id, l.course_id, l.title, l."position"
   FROM public.lessons l
   JOIN public.courses c ON c.id = l.course_id
   WHERE l.course_id = p_course_id
     AND (c.is_published = true OR public.is_admin())
-  ORDER BY l.position ASC;
+  ORDER BY l."position" ASC;
 $$;
 
 -- --------------------------------------------------------------------
