@@ -1,5 +1,5 @@
 -- ====================================================================
--- NextGen Learning Platform - Initial Supabase Database Migration
+-- NextGen Learning Platform - Complete Supabase Master Migration
 -- Tagline: "Leading Today, Shaping Tomorrow."
 -- ====================================================================
 
@@ -8,7 +8,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 2. PROFILES TABLE
--- Linked to auth.users. Stores student & admin identities and roles.
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL DEFAULT '',
@@ -92,7 +91,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON public.orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 
 -- ====================================================================
--- HELPER FUNCTIONS & TRIGGERS
+-- 8. HELPER FUNCTIONS & TRIGGERS
 -- ====================================================================
 
 -- Function: Check if the current executing user is an admin
@@ -146,7 +145,6 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- If not an admin, keep the old role intact
   IF NOT public.is_admin() THEN
     NEW.role := OLD.role;
   END IF;
@@ -160,9 +158,24 @@ CREATE TRIGGER tr_protect_profile_role
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.protect_profile_role();
 
+-- Auto update timestamp trigger on courses
+CREATE OR REPLACE FUNCTION public.update_course_timestamp()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at := timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tr_update_course_timestamp ON public.courses;
+CREATE TRIGGER tr_update_course_timestamp
+  BEFORE UPDATE ON public.courses
+  FOR EACH ROW EXECUTE FUNCTION public.update_course_timestamp();
+
 -- ====================================================================
--- DIRECT STUDENT REGISTRATION RPC (Solution B: Bypasses email rate limits)
--- Hashes password with standard bcrypt and creates an instantly confirmed user.
+-- 9. DIRECT STUDENT REGISTRATION RPC (Solution B: Zero Rate Limit)
 -- ====================================================================
 CREATE OR REPLACE FUNCTION public.register_student(
   p_email TEXT,
@@ -193,7 +206,6 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'An account with this email or mobile number already exists. Please log in.');
   END IF;
 
-  -- Bcrypt hash via pgcrypto
   v_encrypted_pw := extensions.crypt(p_password, extensions.gen_salt('bf'));
 
   v_raw_meta := jsonb_build_object(
@@ -201,8 +213,7 @@ BEGIN
     'phone', p_phone
   );
 
-  -- Insert directly into auth.users with email_confirmed_at = now()
-  -- Crucial: string token columns must be empty strings '' instead of NULL to prevent GoTrue scanner 500 errors
+  -- Insert directly into auth.users as pre-confirmed with clean empty strings
   INSERT INTO auth.users (
     instance_id,
     id,
@@ -253,24 +264,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.register_student(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
 
--- Auto update timestamp trigger on courses
-CREATE OR REPLACE FUNCTION public.update_course_timestamp()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  NEW.updated_at := timezone('utc'::text, now());
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS tr_update_course_timestamp ON public.courses;
-CREATE TRIGGER tr_update_course_timestamp
-  BEFORE UPDATE ON public.courses
-  FOR EACH ROW EXECUTE FUNCTION public.update_course_timestamp();
-
 -- ====================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- 10. ROW LEVEL SECURITY (RLS) POLICIES
 -- ====================================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -280,9 +275,7 @@ ALTER TABLE public.enrollments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lesson_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
--- --------------------------------------------------------------------
--- PROFILES POLICIES
--- --------------------------------------------------------------------
+-- Profiles Policies
 DROP POLICY IF EXISTS "profiles_select_policy" ON public.profiles;
 CREATE POLICY "profiles_select_policy"
   ON public.profiles FOR SELECT
@@ -299,9 +292,7 @@ CREATE POLICY "profiles_admin_all"
   ON public.profiles FOR ALL
   USING (public.is_admin());
 
--- --------------------------------------------------------------------
--- COURSES POLICIES
--- --------------------------------------------------------------------
+-- Courses Policies
 DROP POLICY IF EXISTS "courses_select_policy" ON public.courses;
 CREATE POLICY "courses_select_policy"
   ON public.courses FOR SELECT
@@ -323,9 +314,7 @@ CREATE POLICY "courses_admin_delete"
   ON public.courses FOR DELETE
   USING (public.is_admin());
 
--- --------------------------------------------------------------------
--- LESSONS POLICIES & CURRICULUM ACCESS
--- --------------------------------------------------------------------
+-- Lessons Policies
 DROP POLICY IF EXISTS "lessons_enrolled_or_admin_select" ON public.lessons;
 CREATE POLICY "lessons_enrolled_or_admin_select"
   ON public.lessons FOR SELECT
@@ -355,7 +344,7 @@ CREATE POLICY "lessons_admin_delete"
   ON public.lessons FOR DELETE
   USING (public.is_admin());
 
--- Function for public/prospective students to view curriculum outline (titles & positions only, NO video_url)
+-- Safe RPC function for public curriculum previews (titles & sequence only, no video_url)
 CREATE OR REPLACE FUNCTION public.get_course_curriculum(p_course_id UUID)
 RETURNS TABLE (
   id UUID,
@@ -376,9 +365,7 @@ AS $$
   ORDER BY l."position" ASC;
 $$;
 
--- --------------------------------------------------------------------
--- ENROLLMENTS POLICIES
--- --------------------------------------------------------------------
+-- Enrollments Policies
 DROP POLICY IF EXISTS "enrollments_select_policy" ON public.enrollments;
 CREATE POLICY "enrollments_select_policy"
   ON public.enrollments FOR SELECT
@@ -390,9 +377,7 @@ CREATE POLICY "enrollments_admin_all"
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
--- --------------------------------------------------------------------
--- LESSON PROGRESS POLICIES
--- --------------------------------------------------------------------
+-- Lesson Progress Policies
 DROP POLICY IF EXISTS "lesson_progress_select_policy" ON public.lesson_progress;
 CREATE POLICY "lesson_progress_select_policy"
   ON public.lesson_progress FOR SELECT
@@ -418,9 +403,7 @@ CREATE POLICY "lesson_progress_update_policy"
   USING (auth.uid() = user_id OR public.is_admin())
   WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
--- --------------------------------------------------------------------
--- ORDERS POLICIES
--- --------------------------------------------------------------------
+-- Orders Policies
 DROP POLICY IF EXISTS "orders_select_policy" ON public.orders;
 CREATE POLICY "orders_select_policy"
   ON public.orders FOR SELECT
@@ -441,7 +424,7 @@ CREATE POLICY "orders_admin_all"
   WITH CHECK (public.is_admin());
 
 -- ====================================================================
--- STORAGE BUCKETS CONFIGURATION (Supabase Storage)
+-- 11. STORAGE BUCKETS CONFIGURATION (Supabase Storage)
 -- ====================================================================
 
 -- 1. course-thumbnails (Public bucket for course thumbnails)
@@ -497,8 +480,60 @@ CREATE POLICY "Admins can update/delete videos"
   USING (bucket_id = 'course-videos' AND public.is_admin());
 
 -- ====================================================================
--- DOCUMENTED FIRST ADMIN CREATION
--- Run this line in Supabase SQL Editor after the user signs up:
+-- 12. INITIAL ADMIN ACCOUNT CREATION
+-- Credentials: admin@nextgen.com / NextGenAdmin@123
+-- ====================================================================
+DELETE FROM auth.users WHERE email = 'admin@nextgen.com';
+
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  confirmation_token,
+  recovery_token,
+  email_change_token_new,
+  email_change,
+  email_change_token_current,
+  phone_change,
+  phone_change_token,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  gen_random_uuid(),
+  'authenticated',
+  'authenticated',
+  'admin@nextgen.com',
+  extensions.crypt('NextGenAdmin@123', extensions.gen_salt('bf')),
+  timezone('utc'::text, now()),
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"NextGen Administrator"}'::jsonb,
+  timezone('utc'::text, now()),
+  timezone('utc'::text, now())
+);
+
+-- Elevate to admin
+UPDATE public.profiles
+SET role = 'admin'
+WHERE email = 'admin@nextgen.com';
+
+-- Refresh cache
+NOTIFY pgrst, 'reload schema';
+
+-- ====================================================================
+-- DOCUMENTED FIRST ADMIN CREATION (Template)
 -- UPDATE public.profiles SET role = 'admin' WHERE email = 'your-email@example.com';
 -- ====================================================================
-
