@@ -6,9 +6,7 @@
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. ENUMS & DOMAINS (if needed, or check constraints)
-
--- 3. PROFILES TABLE
+-- 2. PROFILES TABLE
 -- Linked to auth.users. Stores student & admin identities and roles.
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -20,12 +18,11 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Index for searching students
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_phone ON public.profiles(phone);
 
--- 4. COURSES TABLE
+-- 3. COURSES TABLE
 CREATE TABLE IF NOT EXISTS public.courses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -41,7 +38,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
 
 CREATE INDEX IF NOT EXISTS idx_courses_published ON public.courses(is_published);
 
--- 5. LESSONS TABLE
+-- 4. LESSONS TABLE
 CREATE TABLE IF NOT EXISTS public.lessons (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -54,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.lessons (
 
 CREATE INDEX IF NOT EXISTS idx_lessons_course_pos ON public.lessons(course_id, position);
 
--- 6. ENROLLMENTS TABLE
+-- 5. ENROLLMENTS TABLE
 CREATE TABLE IF NOT EXISTS public.enrollments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -67,7 +64,7 @@ CREATE TABLE IF NOT EXISTS public.enrollments (
 CREATE INDEX IF NOT EXISTS idx_enrollments_user ON public.enrollments(user_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_course ON public.enrollments(course_id);
 
--- 7. LESSON PROGRESS TABLE
+-- 6. LESSON PROGRESS TABLE
 CREATE TABLE IF NOT EXISTS public.lesson_progress (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -79,7 +76,7 @@ CREATE TABLE IF NOT EXISTS public.lesson_progress (
 
 CREATE INDEX IF NOT EXISTS idx_lesson_progress_user ON public.lesson_progress(user_id);
 
--- 8. ORDERS TABLE
+-- 7. ORDERS TABLE
 CREATE TABLE IF NOT EXISTS public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -192,18 +189,18 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 -- --------------------------------------------------------------------
 -- PROFILES POLICIES
 -- --------------------------------------------------------------------
--- Users can view their own profile; admins can view all profiles
+DROP POLICY IF EXISTS "profiles_select_policy" ON public.profiles;
 CREATE POLICY "profiles_select_policy"
   ON public.profiles FOR SELECT
   USING (auth.uid() = id OR public.is_admin());
 
--- Users can update their own profile; admins can update all profiles
+DROP POLICY IF EXISTS "profiles_update_policy" ON public.profiles;
 CREATE POLICY "profiles_update_policy"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id OR public.is_admin())
   WITH CHECK (auth.uid() = id OR public.is_admin());
 
--- Admins can insert/delete profiles
+DROP POLICY IF EXISTS "profiles_admin_all" ON public.profiles;
 CREATE POLICY "profiles_admin_all"
   ON public.profiles FOR ALL
   USING (public.is_admin());
@@ -211,21 +208,23 @@ CREATE POLICY "profiles_admin_all"
 -- --------------------------------------------------------------------
 -- COURSES POLICIES
 -- --------------------------------------------------------------------
--- Students/public can read published courses; admins can read all
+DROP POLICY IF EXISTS "courses_select_policy" ON public.courses;
 CREATE POLICY "courses_select_policy"
   ON public.courses FOR SELECT
   USING (is_published = true OR public.is_admin());
 
--- Only admins can insert, update, or delete courses
+DROP POLICY IF EXISTS "courses_admin_insert" ON public.courses;
 CREATE POLICY "courses_admin_insert"
   ON public.courses FOR INSERT
   WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "courses_admin_update" ON public.courses;
 CREATE POLICY "courses_admin_update"
   ON public.courses FOR UPDATE
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "courses_admin_delete" ON public.courses;
 CREATE POLICY "courses_admin_delete"
   ON public.courses FOR DELETE
   USING (public.is_admin());
@@ -233,8 +232,7 @@ CREATE POLICY "courses_admin_delete"
 -- --------------------------------------------------------------------
 -- LESSONS POLICIES & CURRICULUM ACCESS
 -- --------------------------------------------------------------------
--- Requirement: "lessons readable only by enrolled students (course and lesson titles may be public)"
--- Full lessons row (with video_url and description) is restricted to enrolled students and admins.
+DROP POLICY IF EXISTS "lessons_enrolled_or_admin_select" ON public.lessons;
 CREATE POLICY "lessons_enrolled_or_admin_select"
   ON public.lessons FOR SELECT
   USING (
@@ -247,16 +245,18 @@ CREATE POLICY "lessons_enrolled_or_admin_select"
     )
   );
 
--- Admins can manage lessons
+DROP POLICY IF EXISTS "lessons_admin_insert" ON public.lessons;
 CREATE POLICY "lessons_admin_insert"
   ON public.lessons FOR INSERT
   WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "lessons_admin_update" ON public.lessons;
 CREATE POLICY "lessons_admin_update"
   ON public.lessons FOR UPDATE
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "lessons_admin_delete" ON public.lessons;
 CREATE POLICY "lessons_admin_delete"
   ON public.lessons FOR DELETE
   USING (public.is_admin());
@@ -285,12 +285,12 @@ $$;
 -- --------------------------------------------------------------------
 -- ENROLLMENTS POLICIES
 -- --------------------------------------------------------------------
--- Users can view their own enrollments; admins view all
+DROP POLICY IF EXISTS "enrollments_select_policy" ON public.enrollments;
 CREATE POLICY "enrollments_select_policy"
   ON public.enrollments FOR SELECT
   USING (auth.uid() = user_id OR public.is_admin());
 
--- Only admins can insert, update, or delete enrollments (grant/revoke access)
+DROP POLICY IF EXISTS "enrollments_admin_all" ON public.enrollments;
 CREATE POLICY "enrollments_admin_all"
   ON public.enrollments FOR ALL
   USING (public.is_admin())
@@ -299,11 +299,12 @@ CREATE POLICY "enrollments_admin_all"
 -- --------------------------------------------------------------------
 -- LESSON PROGRESS POLICIES
 -- --------------------------------------------------------------------
--- Users can view and manage their own progress for enrolled courses
+DROP POLICY IF EXISTS "lesson_progress_select_policy" ON public.lesson_progress;
 CREATE POLICY "lesson_progress_select_policy"
   ON public.lesson_progress FOR SELECT
   USING (auth.uid() = user_id OR public.is_admin());
 
+DROP POLICY IF EXISTS "lesson_progress_insert_policy" ON public.lesson_progress;
 CREATE POLICY "lesson_progress_insert_policy"
   ON public.lesson_progress FOR INSERT
   WITH CHECK (
@@ -317,6 +318,7 @@ CREATE POLICY "lesson_progress_insert_policy"
     )
   );
 
+DROP POLICY IF EXISTS "lesson_progress_update_policy" ON public.lesson_progress;
 CREATE POLICY "lesson_progress_update_policy"
   ON public.lesson_progress FOR UPDATE
   USING (auth.uid() = user_id OR public.is_admin())
@@ -325,12 +327,12 @@ CREATE POLICY "lesson_progress_update_policy"
 -- --------------------------------------------------------------------
 -- ORDERS POLICIES
 -- --------------------------------------------------------------------
--- Users can view their own orders; admins view all
+DROP POLICY IF EXISTS "orders_select_policy" ON public.orders;
 CREATE POLICY "orders_select_policy"
   ON public.orders FOR SELECT
   USING (auth.uid() = user_id OR public.is_admin());
 
--- Students can create their own pending orders only
+DROP POLICY IF EXISTS "orders_student_insert_pending" ON public.orders;
 CREATE POLICY "orders_student_insert_pending"
   ON public.orders FOR INSERT
   WITH CHECK (
@@ -338,7 +340,7 @@ CREATE POLICY "orders_student_insert_pending"
     status = 'pending'
   );
 
--- Admins can update/manage orders (mark paid, failed, etc.)
+DROP POLICY IF EXISTS "orders_admin_all" ON public.orders;
 CREATE POLICY "orders_admin_all"
   ON public.orders FOR ALL
   USING (public.is_admin())
@@ -359,49 +361,43 @@ VALUES ('course-videos', 'course-videos', false)
 ON CONFLICT (id) DO UPDATE SET public = false;
 
 -- Storage Policies for course-thumbnails:
--- Anyone can view thumbnails
+DROP POLICY IF EXISTS "Thumbnails are publicly accessible" ON storage.objects;
 CREATE POLICY "Thumbnails are publicly accessible"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'course-thumbnails');
 
--- Only admins can upload/manage thumbnails
+DROP POLICY IF EXISTS "Admins can upload thumbnails" ON storage.objects;
 CREATE POLICY "Admins can upload thumbnails"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'course-thumbnails' AND public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can update thumbnails" ON storage.objects;
 CREATE POLICY "Admins can update thumbnails"
   ON storage.objects FOR UPDATE
   USING (bucket_id = 'course-thumbnails' AND public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can delete thumbnails" ON storage.objects;
 CREATE POLICY "Admins can delete thumbnails"
   ON storage.objects FOR DELETE
   USING (bucket_id = 'course-thumbnails' AND public.is_admin());
 
 -- Storage Policies for course-videos:
--- Admins and enrolled students can access video files
+DROP POLICY IF EXISTS "Admins and enrolled students can view course videos" ON storage.objects;
 CREATE POLICY "Admins and enrolled students can view course videos"
   ON storage.objects FOR SELECT
   USING (
     bucket_id = 'course-videos' AND (
       public.is_admin() OR
-      EXISTS (
-        -- Assumes file name or path contains course_id or matches a lesson
-        -- For maximum safety, admins upload, and signed URLs are generated via Supabase Storage
-        auth.role() = 'authenticated'
-      )
+      auth.role() = 'authenticated'
     )
   );
 
+DROP POLICY IF EXISTS "Admins can upload videos" ON storage.objects;
 CREATE POLICY "Admins can upload videos"
   ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'course-videos' AND public.is_admin());
 
+DROP POLICY IF EXISTS "Admins can update/delete videos" ON storage.objects;
 CREATE POLICY "Admins can update/delete videos"
   ON storage.objects FOR ALL
   USING (bucket_id = 'course-videos' AND public.is_admin());
-
--- ====================================================================
--- DOCUMENTED FIRST ADMIN CREATION
--- Run this line in Supabase SQL Editor after the user signs up:
--- UPDATE public.profiles SET role = 'admin' WHERE email = 'your-email@example.com';
--- ====================================================================
