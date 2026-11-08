@@ -202,6 +202,7 @@ BEGIN
   );
 
   -- Insert directly into auth.users with email_confirmed_at = now()
+  -- Crucial: string token columns must be empty strings '' instead of NULL to prevent GoTrue scanner 500 errors
   INSERT INTO auth.users (
     instance_id,
     id,
@@ -210,6 +211,13 @@ BEGIN
     email,
     encrypted_password,
     email_confirmed_at,
+    confirmation_token,
+    recovery_token,
+    email_change_token_new,
+    email_change,
+    email_change_token_current,
+    phone_change,
+    phone_change_token,
     raw_app_meta_data,
     raw_user_meta_data,
     created_at,
@@ -222,6 +230,13 @@ BEGIN
     lower(trim(p_email)),
     v_encrypted_pw,
     timezone('utc'::text, now()),
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
     '{"provider":"email","providers":["email"]}'::jsonb,
     v_raw_meta,
     timezone('utc'::text, now()),
