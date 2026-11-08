@@ -18,26 +18,27 @@ export function extractIndianPhoneDigits(raw: string): string | null {
   // 12 digits: e.g. 919876543210
   if (clean.length === 12 && clean.startsWith('91')) {
     const digits = clean.slice(2);
-    return isValidIndianTenDigit(digits) ? digits : null;
+    return digits.length === 10 ? digits : null;
   }
   
   // 11 digits: e.g. 09876543210 (leading zero)
   if (clean.length === 11 && clean.startsWith('0')) {
     const digits = clean.slice(1);
-    return isValidIndianTenDigit(digits) ? digits : null;
+    return digits.length === 10 ? digits : null;
   }
   
-  // 10 digits: e.g. 9876543210
+  // Exactly 10 digits: e.g. 9876543210
   if (clean.length === 10) {
-    return isValidIndianTenDigit(clean) ? clean : null;
+    return clean;
   }
   
-  return null;
-}
+  // If user pasted or entered more with prefix
+  if (clean.length > 10 && clean.startsWith('91')) {
+    const remaining = clean.slice(2);
+    if (remaining.length === 10) return remaining;
+  }
 
-function isValidIndianTenDigit(digits: string): boolean {
-  // Indian mobile numbers typically begin with 6, 7, 8, or 9
-  return /^[6-9]\d{9}$/.test(digits);
+  return null;
 }
 
 /**

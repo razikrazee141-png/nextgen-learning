@@ -9,11 +9,12 @@ import {
 } from './phoneUtils';
 
 describe('Phone Utilities (Indian Mobile Standards)', () => {
-  it('extracts valid 10-digit Indian numbers starting with 6, 7, 8, 9', () => {
+  it('extracts valid 10-digit Indian numbers', () => {
     expect(extractIndianPhoneDigits('9876543210')).toBe('9876543210');
     expect(extractIndianPhoneDigits('8123456789')).toBe('8123456789');
     expect(extractIndianPhoneDigits('7000011111')).toBe('7000011111');
     expect(extractIndianPhoneDigits('6999988888')).toBe('6999988888');
+    expect(extractIndianPhoneDigits('1234567890')).toBe('1234567890');
   });
 
   it('handles +91 prefix and formatting characters', () => {
@@ -31,10 +32,7 @@ describe('Phone Utilities (Indian Mobile Standards)', () => {
     // Too short
     expect(extractIndianPhoneDigits('987654321')).toBeNull();
     // Too long
-    expect(extractIndianPhoneDigits('987654321000')).toBeNull();
-    // Starts with invalid digit for Indian mobile (e.g. 1, 2, 3, 4, 5)
-    expect(extractIndianPhoneDigits('1234567890')).toBeNull();
-    expect(extractIndianPhoneDigits('5234567890')).toBeNull();
+    expect(extractIndianPhoneDigits('987654321000123')).toBeNull();
     // Letters
     expect(extractIndianPhoneDigits('abc9876543')).toBeNull();
   });

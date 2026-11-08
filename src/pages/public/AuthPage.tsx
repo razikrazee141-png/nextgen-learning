@@ -403,9 +403,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                   </span>
                   <input
                     type="tel"
-                    maxLength={10}
                     value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      let digits = raw.replace(/\D/g, '');
+                      // Strip +91 country code or leading 0 if pasted
+                      if (digits.length === 12 && digits.startsWith('91')) {
+                        digits = digits.slice(2);
+                      } else if (digits.length === 11 && digits.startsWith('0')) {
+                        digits = digits.slice(1);
+                      } else if (digits.length > 10) {
+                        digits = digits.slice(0, 10);
+                      }
+                      setRegPhone(digits);
+                    }}
                     placeholder="9876543210"
                     className="w-full px-4 py-2.5 text-sm border border-slate-300 rounded-r-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     required

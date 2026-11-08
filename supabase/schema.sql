@@ -401,3 +401,10 @@ DROP POLICY IF EXISTS "Admins can update/delete videos" ON storage.objects;
 CREATE POLICY "Admins can update/delete videos"
   ON storage.objects FOR ALL
   USING (bucket_id = 'course-videos' AND public.is_admin());
+
+-- ====================================================================
+-- DOCUMENTED FIRST ADMIN CREATION
+-- Run this line in Supabase SQL Editor after the user signs up:
+-- UPDATE public.profiles SET role = 'admin' WHERE email = 'your-email@example.com';
+-- ====================================================================
+
