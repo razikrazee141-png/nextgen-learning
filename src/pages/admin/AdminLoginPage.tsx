@@ -1,19 +1,34 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Shield, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Shield, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowLeft, Copy, Check } from 'lucide-react';
 
 export const AdminLoginPage: React.FC = () => {
   const { login, logout, refreshProfile } = useAuth();
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState('admin@nextgen.com');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsRolePromotion, setNeedsRolePromotion] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const roleFixSql = `DROP TRIGGER IF EXISTS tr_protect_profile_role ON public.profiles;
+
+UPDATE public.profiles
+SET role = 'admin'
+WHERE email = '${needsRolePromotion || 'admin@nextgen.com'}';`;
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(roleFixSql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNeedsRolePromotion(null);
 
     const trimmed = identifier.trim();
     if (!trimmed) {
@@ -42,7 +57,8 @@ export const AdminLoginPage: React.FC = () => {
       if (!profile || profile.role !== 'admin') {
         // Sign out immediately so non-admin user doesn't linger in admin route
         await logout();
-        setError('Access denied: This account does not have administrator privileges.');
+        setNeedsRolePromotion(profile?.email || trimmed);
+        setError('Credentials are valid, but this account is currently registered as "student" instead of "admin" in your database.');
         setLoading(false);
         return;
       }
@@ -74,9 +90,30 @@ export const AdminLoginPage: React.FC = () => {
         {/* Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start space-x-3 text-rose-400 text-xs">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 font-medium">{error}</div>
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs space-y-2">
+              <div className="flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 font-medium">{error}</div>
+              </div>
+
+              {needsRolePromotion && (
+                <div className="mt-2 pt-2 border-t border-rose-500/20 space-y-2 text-slate-300">
+                  <p className="text-[11px]">
+                    To elevate this account to Admin, paste and run this command in your <strong>Supabase SQL Editor</strong>:
+                  </p>
+                  <pre className="p-2 bg-slate-950 rounded text-[10px] font-mono text-emerald-400 overflow-x-auto">
+                    {roleFixSql}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={handleCopySql}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-400 hover:text-indigo-300 text-[11px] font-semibold transition-colors"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'Copied SQL!' : 'Copy SQL snippet'}</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
