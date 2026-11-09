@@ -145,9 +145,22 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT public.is_admin() THEN
-    NEW.role := OLD.role;
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    -- Allow role change if:
+    -- 1. Executed directly in DB console/migrations (auth.uid() IS NULL or current_user is superuser/service_role)
+    -- 2. OR caller has service_role JWT
+    -- 3. OR the authenticated user is already an admin
+    IF auth.uid() IS NULL 
+       OR current_user IN ('postgres', 'service_role', 'supabase_admin')
+       OR (auth.jwt()->>'role') = 'service_role'
+       OR public.is_admin() THEN
+      NULL; -- Allowed
+    ELSE
+      -- Disallow normal users from escalating their own role
+      NEW.role := OLD.role;
+    END IF;
   END IF;
+
   NEW.updated_at := timezone('utc'::text, now());
   RETURN NEW;
 END;

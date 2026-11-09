@@ -12,10 +12,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const location = useLocation();
   const navigate = useNavigate();
-  const { login, register, verifyOtp, phoneMode } = useAuth();
+  const { login, register, verifyOtp, phoneMode, refreshProfile } = useAuth();
 
-  // Redirect target after successful auth
-  const redirectPath = (location.state as any)?.from?.pathname || '/my-courses';
+  const handlePostAuthRedirect = async () => {
+    const fromPath = (location.state as any)?.from?.pathname;
+    if (fromPath) {
+      navigate(fromPath, { replace: true });
+      return;
+    }
+    const currentProfile = await refreshProfile();
+    if (currentProfile?.role === 'admin') {
+      navigate('/admin', { replace: true });
+    } else {
+      navigate('/my-courses', { replace: true });
+    }
+  };
 
   // Common Form States
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +81,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
     }
 
     // Success -> Navigate to target page
-    navigate(redirectPath, { replace: true });
+    await handlePostAuthRedirect();
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -131,7 +142,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
     }
 
     // Successful registration
-    navigate(redirectPath, { replace: true });
+    await handlePostAuthRedirect();
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
@@ -151,7 +162,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
       return;
     }
 
-    navigate(redirectPath, { replace: true });
+    await handlePostAuthRedirect();
   };
 
   return (

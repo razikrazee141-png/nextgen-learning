@@ -119,12 +119,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: 'Please enter your password.' };
       }
       try {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: raw.toLowerCase(),
           password,
         });
         if (error) {
           return { error: mapAuthErrorMessage(error) };
+        }
+        if (data?.user) {
+          setUser(data.user);
+          await fetchProfile(data.user.id);
         }
         return { error: null };
       } catch (err: unknown) {
@@ -146,12 +150,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const simpleEmail = phoneToSimpleEmail(digits);
       try {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: simpleEmail,
           password,
         });
         if (error) {
           return { error: mapAuthErrorMessage(error) };
+        }
+        if (data?.user) {
+          setUser(data.user);
+          await fetchProfile(data.user.id);
         }
         return { error: null };
       } catch (err: unknown) {
@@ -187,13 +195,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const e164 = `+91${digits}`;
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         phone: e164,
         token: token.trim(),
         type: 'sms',
       });
       if (error) {
         return { error: mapAuthErrorMessage(error) };
+      }
+      if (data?.user) {
+        setUser(data.user);
+        await fetchProfile(data.user.id);
       }
       return { error: null };
     } catch (err: unknown) {

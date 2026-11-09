@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { BookOpen, User as UserIcon, LogOut, Menu, X } from 'lucide-react';
+import { BookOpen, User as UserIcon, LogOut, Menu, X, Shield } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
-  const { user, profile, logout } = useAuth();
+  const { user, profile, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -56,6 +56,16 @@ export const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <div className="flex items-center space-x-4">
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-colors shadow-sm"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Admin Panel</span>
+                  </Link>
+                )}
+
                 <Link
                   to="/profile"
                   className="flex items-center space-x-2 text-sm font-medium text-slate-700 hover:text-indigo-600 py-1.5 px-3 rounded-md hover:bg-slate-100 transition-colors"
@@ -131,6 +141,16 @@ export const Navbar: React.FC = () => {
           <div className="border-t border-slate-100 pt-3">
             {user ? (
               <div className="space-y-3">
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 py-2 text-base font-bold text-indigo-600 bg-indigo-50 px-3 rounded-lg"
+                  >
+                    <Shield className="w-5 h-5 text-indigo-600" />
+                    <span>Admin Panel</span>
+                  </Link>
+                )}
                 <Link
                   to="/profile"
                   onClick={() => setMobileMenuOpen(false)}

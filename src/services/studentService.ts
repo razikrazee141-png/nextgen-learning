@@ -87,6 +87,29 @@ WHERE id = '${userId}';`;
   },
 
   /**
+   * Admin: Toggle or change a student's role (student <-> admin)
+   */
+  async updateRole(
+    userId: string,
+    newRole: 'student' | 'admin'
+  ): Promise<{ error: string | null }> {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', userId);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message || 'Failed to update user role' };
+    }
+  },
+
+  /**
    * Admin: Fetch platform summary statistics
    */
   async getStats(): Promise<{ data: AdminStats | null; error: string | null }> {

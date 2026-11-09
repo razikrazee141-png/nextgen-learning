@@ -62,6 +62,23 @@ export const AdminStudentsPage: React.FC = () => {
     loadStudents(searchQuery);
   };
 
+  const handleToggleRole = async (student: UserProfile) => {
+    const newRole = student.role === 'admin' ? 'student' : 'admin';
+    const confirmMsg =
+      student.role === 'admin'
+        ? `Are you sure you want to remove administrator privileges from ${student.full_name || student.email || 'this user'}?`
+        : `Are you sure you want to promote ${student.full_name || student.email || 'this user'} to Administrator? They will have full access to manage courses, view orders, and manage students.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const { error } = await studentService.updateRole(student.id, newRole);
+    if (error) {
+      alert(`Failed to update role: ${error}`);
+    } else {
+      await loadStudents(searchQuery);
+    }
+  };
+
   // Open Password Reset Modal
   const openResetModal = (student: UserProfile) => {
     setResetModalStudent(student);
@@ -202,16 +219,25 @@ export const AdminStudentsPage: React.FC = () => {
                       </td>
 
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                            student.role === 'admin'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {student.role === 'admin' && <Shield className="w-3 h-3 mr-1" />}
-                          {student.role}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                              student.role === 'admin'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {student.role === 'admin' && <Shield className="w-3 h-3 mr-1" />}
+                            {student.role}
+                          </span>
+                          <button
+                            onClick={() => handleToggleRole(student)}
+                            className="text-[10px] text-slate-400 hover:text-indigo-600 underline font-medium transition-colors"
+                            title={`Switch to ${student.role === 'admin' ? 'student' : 'admin'}`}
+                          >
+                            {student.role === 'admin' ? 'Demote' : 'Make Admin'}
+                          </button>
+                        </div>
                       </td>
 
                       <td className="px-6 py-4 text-slate-500">
