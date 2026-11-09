@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run --no-cache",
+    "postinstall": "node -e \"const fs = require('fs'); const path = require('path'); const src = path.join('node_modules', '@rollup', 'wasm-node'); const dest = path.join('node_modules', 'rollup'); if (fs.existsSync(src) && fs.existsSync(dest)) { fs.cpSync(src, dest, { recursive: true, force: true }); }\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",
@@ -17,6 +18,7 @@
     "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
+    "@rollup/wasm-node": "^4.68.0",
     "@types/node": "^22.13.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
@@ -27,5 +29,8 @@
     "typescript": "~5.7.2",
     "vite": "^6.1.0",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "rollup": "npm:@rollup/wasm-node"
   }
 }
