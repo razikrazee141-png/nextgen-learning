@@ -400,13 +400,15 @@ DROP POLICY IF EXISTS "lesson_progress_insert_policy" ON public.lesson_progress;
 CREATE POLICY "lesson_progress_insert_policy"
   ON public.lesson_progress FOR INSERT
   WITH CHECK (
-    auth.uid() = user_id AND
-    EXISTS (
-      SELECT 1 FROM public.lessons l
-      JOIN public.enrollments e ON e.course_id = l.course_id
-      WHERE l.id = lesson_progress.lesson_id
-        AND e.user_id = auth.uid()
-        AND e.status = 'active'
+    auth.uid() = user_id AND (
+      public.is_admin() OR
+      EXISTS (
+        SELECT 1 FROM public.lessons l
+        JOIN public.enrollments e ON e.course_id = l.course_id
+        WHERE l.id = lesson_progress.lesson_id
+          AND e.user_id = auth.uid()
+          AND e.status = 'active'
+      )
     )
   );
 

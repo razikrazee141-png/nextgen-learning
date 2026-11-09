@@ -15,12 +15,13 @@ import {
   AlertCircle,
   Copy,
   Check,
+  Shield,
 } from 'lucide-react';
 
 export const CourseDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [curriculum, setCurriculum] = useState<LessonPreview[]>([]);
@@ -63,12 +64,17 @@ export const CourseDetailPage: React.FC = () => {
       return;
     }
 
-    if (isEnrolled) {
+    // If already enrolled OR user is admin -> immediate access without payment!
+    if (isEnrolled || isAdmin) {
+      if (isAdmin && !isEnrolled) {
+        // Silently establish admin active enrollment so it appears in My Courses
+        enrollmentService.grantAccess(user.id, course.id);
+      }
       navigate(`/courses/${course.id}/learn`);
       return;
     }
 
-    // Initiate purchase flow through payment service layer
+    // Initiate purchase flow through payment service layer for regular students
     setPurchasing(true);
     setOrderError(null);
 
@@ -161,16 +167,33 @@ export const CourseDetailPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="mb-6">
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-3xl font-extrabold text-slate-900">
-                    {formattedPrice}
-                  </span>
+              {isAdmin ? (
+                <div className="mb-6 space-y-2">
+                  <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                    <Shield className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Administrator Access</span>
+                  </div>
+                  <div>
+                    <span className="text-2xl font-extrabold text-slate-900 block">
+                      Free (Full Access)
+                    </span>
+                    <p className="text-xs text-slate-500 mt-1">
+                      As platform administrator, you have full lifetime access without any payment.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  One-time enrollment for full lifetime access.
-                </p>
-              </div>
+              ) : (
+                <div className="mb-6">
+                  <div className="flex items-baseline space-x-2">
+                    <span className="text-3xl font-extrabold text-slate-900">
+                      {formattedPrice}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    One-time enrollment for full lifetime access.
+                  </p>
+                </div>
+              )}
 
               {orderError && (
                 <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-start space-x-2">
@@ -179,7 +202,24 @@ export const CourseDetailPage: React.FC = () => {
                 </div>
               )}
 
-              {isEnrolled ? (
+              {isAdmin ? (
+                <div className="space-y-2.5">
+                  <button
+                    onClick={handleEnrollOrBuy}
+                    className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <span>Enter Course Player</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <Link
+                    to={`/admin/courses/${course.id}/lessons`}
+                    className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Manage Lessons in Admin Panel</span>
+                  </Link>
+                </div>
+              ) : isEnrolled ? (
                 <button
                   onClick={() => navigate(`/courses/${course.id}/learn`)}
                   className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center space-x-2"
@@ -252,9 +292,12 @@ export const CourseDetailPage: React.FC = () => {
 
             <CurriculumAccordion
               lessons={curriculum}
-              isEnrolled={isEnrolled}
+              isEnrolled={isEnrolled || isAdmin}
               onSelectLesson={() => {
-                if (isEnrolled) {
+                if (isEnrolled || isAdmin) {
+                  if (isAdmin && !isEnrolled && user) {
+                    enrollmentService.grantAccess(user.id, course.id);
+                  }
                   navigate(`/courses/${course.id}/learn`);
                 }
               }}
