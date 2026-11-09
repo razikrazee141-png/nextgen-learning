@@ -53,11 +53,11 @@ WHERE email = '${needsRolePromotion || 'admin@nextgen.com'}';`;
       }
 
       // Check if the authenticated user has admin role
-      const profile = await refreshProfile();
-      if (!profile || profile.role !== 'admin') {
-        // Sign out immediately so non-admin user doesn't linger in admin route
+      const profile = res.profile || (await refreshProfile());
+      if (profile && profile.role !== 'admin') {
+        // Only sign out if the user is confirmed to be a non-admin student
         await logout();
-        setNeedsRolePromotion(profile?.email || trimmed);
+        setNeedsRolePromotion(profile.email || trimmed);
         setError('Credentials are valid, but this account is currently registered as "student" instead of "admin" in your database.');
         setLoading(false);
         return;

@@ -15,7 +15,7 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   phoneMode: PhoneAuthMode;
-  login: (identifier: string, password?: string) => Promise<{ error: string | null; needsOtp?: boolean }>;
+  login: (identifier: string, password?: string) => Promise<{ error: string | null; needsOtp?: boolean; profile?: UserProfile | null }>;
   verifyOtp: (phone: string, token: string) => Promise<{ error: string | null }>;
   register: (data: {
     fullName: string;
@@ -59,9 +59,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const refreshProfile = useCallback(async () => {
-    if (user) {
-      return await fetchProfile(user.id);
+  const refreshProfile = useCallback(async (): Promise<UserProfile | null> => {
+    let targetUserId = user?.id;
+    if (!targetUserId) {
+      const { data } = await supabase.auth.getSession();
+      targetUserId = data?.session?.user?.id;
+    }
+    if (targetUserId) {
+      return await fetchProfile(targetUserId);
     }
     return null;
   }, [user, fetchProfile]);
@@ -105,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (
     identifier: string,
     password?: string
-  ): Promise<{ error: string | null; needsOtp?: boolean }> => {
+  ): Promise<{ error: string | null; needsOtp?: boolean; profile?: UserProfile | null }> => {
     const raw = identifier.trim();
     if (!raw) {
       return { error: 'Please enter your email address or 10-digit mobile number.' };
@@ -126,11 +131,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error) {
           return { error: mapAuthErrorMessage(error) };
         }
+        let loadedProfile: UserProfile | null = null;
         if (data?.user) {
           setUser(data.user);
-          await fetchProfile(data.user.id);
+          loadedProfile = await fetchProfile(data.user.id);
         }
-        return { error: null };
+        return { error: null, profile: loadedProfile };
       } catch (err: unknown) {
         const e = err as Error;
         return { error: e.message || 'An unexpected error occurred during login.' };
@@ -157,11 +163,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error) {
           return { error: mapAuthErrorMessage(error) };
         }
+        let loadedProfile: UserProfile | null = null;
         if (data?.user) {
           setUser(data.user);
-          await fetchProfile(data.user.id);
+          loadedProfile = await fetchProfile(data.user.id);
         }
-        return { error: null };
+        return { error: null, profile: loadedProfile };
       } catch (err: unknown) {
         const e = err as Error;
         return { error: e.message || 'An unexpected error occurred during login.' };
