@@ -18,7 +18,7 @@ export const AdminLayout: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    navigate('/admin');
   };
 
   const navItems = [
